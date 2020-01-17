@@ -60,7 +60,7 @@ class create_grade_overrides extends \core\task\scheduled_task {
 				JOIN {modules} m ON cm.module = m.id
 				JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
 				LEFT JOIN {assign} a ON a.id = cm.instance AND cm.module = 1
-				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp')
+				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp') AND cm.visible = 1
 					AND ( (cm.completionexpected >= $timebegin AND cm.completionexpected < $timeend)
 					OR (a.duedate >= $timebegin AND a.duedate < $timeend) )";
 		$activities = $DB->get_records_sql($asql);
