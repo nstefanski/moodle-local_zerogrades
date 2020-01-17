@@ -34,4 +34,20 @@ $observers = array(
         'eventname'   => '\mod_quiz\event\attempt_submitted',
         'callback'    => 'local_zerogrades_observer::attempt_submitted',
     ),
+    array(
+        'eventname'   => '\mod_forum\event\post_created',
+        'callback'    => 'local_zerogrades_observer::post_created',
+    ),
+    array(
+        'eventname'   => '\mod_forum\event\post_updated',
+        'callback'    => 'local_zerogrades_observer::post_updated',
+    ),
+    array(
+        'eventname'   => '\mod_forum\event\discussion_created',
+        'callback'    => 'local_zerogrades_observer::discussion_created',
+    ),
+    array(
+        'eventname'   => '\mod_forum\event\discussion_updated',
+        'callback'    => 'local_zerogrades_observer::discussion_updated',
+    ),
 );

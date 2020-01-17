@@ -82,15 +82,18 @@ class create_grade_overrides extends \core\task\scheduled_task {
 					$submitsql = "SELECT COUNT(*) FROM {quiz_attempts}
 						WHERE userid = u.id AND quiz = $activity->instance AND state = 'finished'";
 					break;
-				case "forum":
+				case "forum":	//override null grades only -- students who have made enough posts should have a grade by now
+				/*	$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
+						WHERE gi.itemmodule = '$activity->itemmodule' AND gg.finalgrade IS NOT NULL
+							AND gg.userid = u.id AND gi.iteminstance = $activity->instance";*/
 				case "hsuforum":
 					$submitsql = "SELECT COUNT(*) FROM {" . $activity->itemmodule . "_posts} p
 						JOIN {". $activity->itemmodule . "_discussions} d ON p.discussion = d.id
 						WHERE p.userid = u.id AND d.forum = $activity->instance";
 					break;
 				case "hvp":
-					$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi
-						WHERE gg.itemid = gi.id AND gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
+					$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
+						WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
 							AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
 					break;
 				default:

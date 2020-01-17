@@ -17,8 +17,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_zerogrades';
-$plugin->version = 2019032200;
-$plugin->release = 'v0.2';
+$plugin->version = 2019050900;
+$plugin->release = 'v0.3';
 $plugin->requires = 2016052303;
 $plugin->maturity = MATURITY_BETA;
 //$plugin->cron = 0;

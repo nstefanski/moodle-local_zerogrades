@@ -55,4 +55,35 @@ class local_zerogrades_observer {
         require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
 		$result = zg_remove_override('quiz', $quiz_attempt->quiz, $event->courseid, $event->userid);
     }
+    
+    /**
+     * Triggered when a forum post or discussion is created or updated,
+     * all these events should pass the forumid in the array $event->other
+     *
+     * @param \mod_forum\event\post_created $event
+     * @param \mod_forum\event\post_updated $event
+     * @param \mod_forum\event\discussion_created $event
+     * @param \mod_forum\event\discussion_updated $event
+	 * @return void
+     */
+    public static function post_created(\mod_forum\event\post_created $event) {
+		global $CFG;
+        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
+		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+    }
+    public static function post_updated(\mod_forum\event\post_updated $event) {
+		global $CFG;
+        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
+		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+    }
+    public static function discussion_created(\mod_forum\event\discussion_created $event) {
+		global $CFG;
+        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
+		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+    }
+    public static function discussion_updated(\mod_forum\event\discussion_updated $event) {
+		global $CFG;
+        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
+		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+    }
 }
