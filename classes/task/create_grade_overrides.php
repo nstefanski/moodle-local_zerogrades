@@ -54,6 +54,7 @@ class create_grade_overrides extends \core\task\scheduled_task {
 		$y = strtotime("-1 days");
 		$timebegin = mktime(0, 0, 0, date("m",$y), date("d",$y), date("Y",$y));
 		$timeend = mktime(0,0,0);
+		//look for dates from yesterday 00:00:00 AM to yesterday 23:59:59 PM
 		
 		$asql = "SELECT cm.id AS cmid, cm.course, gi.id AS itemid, gi.itemmodule, cm.instance
 				FROM {course_modules} cm
@@ -83,9 +84,9 @@ class create_grade_overrides extends \core\task\scheduled_task {
 						WHERE userid = u.id AND quiz = $activity->instance AND state = 'finished'";
 					break;
 				case "forum":	//override null grades only -- students who have made enough posts should have a grade by now
-				/*	$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
+					$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
 						WHERE gi.itemmodule = '$activity->itemmodule' AND gg.finalgrade IS NOT NULL
-							AND gg.userid = u.id AND gi.iteminstance = $activity->instance";*/
+							AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
 				case "hsuforum":
 					$submitsql = "SELECT COUNT(*) FROM {" . $activity->itemmodule . "_posts} p
 						JOIN {". $activity->itemmodule . "_discussions} d ON p.discussion = d.id

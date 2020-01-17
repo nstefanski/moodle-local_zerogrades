@@ -25,7 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Extract all the placeholder names from the SQL.
+ * Remove grade override for specific grade
+ *
  * @param string $itemmodule
  * @param int $iteminstance
  * @param int $courseid
@@ -38,11 +39,9 @@ function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid) {
 	
 	try {
 	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>$itemmodule,'iteminstance'=>$iteminstance,'courseid'=>$courseid))) {
-	    	//email_to_user($nick, $nick, "Can't get grade item for $itemmodule, $iteminstance, $courseid, $userid", "", "" );
 		    print_error('cannotfindgradeitem');
 		}
 		$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
-		//email_to_user($nick, $nick, "Got Grade", serialize($grade_grade), serialize($grade_grade) );
 		
 		if($grade_grade->finalgrade == 0 && $grade_grade->overridden > 0){
 			$grade_grade->set_overridden(0);
@@ -56,6 +55,14 @@ function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid) {
 	return false;
 }
 
+/**
+ * Automatically grade forums using a specific custom scale, giving points for all posts above a certain threshold
+ *
+ * @param int $forumid
+ * @param int $courseid
+ * @param int $userid
+ * @return bool
+ */
 function zg_autograde_forum($forumid, $courseid, $userid){
 	global $CFG, $DB;
 	require_once $CFG->dirroot.'/grade/lib.php';
@@ -63,15 +70,11 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 	
 	try {
 	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>'forum','iteminstance'=>$forumid,'courseid'=>$courseid))) {
-	    	//email_to_user($nick, $nick, "Can't get grade item for forum, $iteminstance, $courseid, $userid", "", "" );
 		    print_error('cannotfindgradeitem');
 		}
-		//email_to_user($nick, $nick, "Forum grade item $forumid, $courseid, $userid, $grade_item->scaleid", serialize($grade_item), serialize($grade_item) );
-		// grade item not needed?
-		//$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
 		
-		//check scaleid == 18 ("Like []")
-		if(abs($grade_item->scaleid) == 18){
+		//check scaleid == 19 ("Like [4]")
+		if(abs($grade_item->scaleid) == 19){
 			//get all forum posts by user in forum
 			$sql = "SELECT p.* FROM mdl_forum_posts p JOIN mdl_forum_discussions d ON p.discussion = d.id
 					WHERE p.userid = ? and d.forum = ?";
@@ -89,8 +92,10 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 			//apply finalgrade if student has enough posts with enough words
 			if($ct >= $postcount){
 				$finalgrade = $grade_item->grademax;
+			} elseif($ct >= 1) {
+				$finalgrade = ($grade_item->grademax - $grade_item->grademin) * $ct / $postcount + $grade_item->grademin;
 			} else {
-				//if not enough posts, override to current grade:
+				//if no posts, override to current grade:
 				// if the forum is overdue, it should have a zero grade (see scheduled task), which we want to keep
 				// else, we want to override with a NULL grade to stop the automatic aggregation from taking effect
 				$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
