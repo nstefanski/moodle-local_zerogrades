@@ -62,10 +62,11 @@ class create_grade_overrides extends \core\task\scheduled_task {
 				JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
 				LEFT JOIN {assign} a ON a.id = cm.instance AND cm.module = 1
 				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp') AND cm.visible = 1
+					AND (gi.itemnumber = 1 OR gi.itemmodule <> 'forum')
 					AND ( (cm.completionexpected >= $timebegin AND cm.completionexpected < $timeend)
 					OR (a.duedate >= $timebegin AND a.duedate < $timeend) )";
 		$activities = $DB->get_records_sql($asql);
-		mtrace("... found " . count($activities) . " activities past due / past expected completion");
+		mtrace("... found " . count($activities) . " activities between $timebegin and $timeend ");
 		
 		//for each, get all users in that context who have not submitted
 		foreach($activities as $activity) {
@@ -87,11 +88,7 @@ class create_grade_overrides extends \core\task\scheduled_task {
 					$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
 						WHERE gi.itemmodule = '$activity->itemmodule' AND gg.finalgrade IS NOT NULL
 							AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
-				case "hsuforum":
-					$submitsql = "SELECT COUNT(*) FROM {" . $activity->itemmodule . "_posts} p
-						JOIN {". $activity->itemmodule . "_discussions} d ON p.discussion = d.id
-						WHERE p.userid = u.id AND d.forum = $activity->instance";
-					break;
+					$submitsql .= ' AND itemnumber = 1'; // TK WFG
 				case "hvp":
 					$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
 						WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
@@ -112,14 +109,17 @@ class create_grade_overrides extends \core\task\scheduled_task {
 			
 			if ($users) {
 				//get the grade_item
-				if (!$grade_item = grade_item::fetch(array('id' => $activity->itemid, 'courseid' => $activity->course))) {
-				    mtrace("... could not fetch grade item");
-				}
+				$params = array('id' => $activity->itemid, 'courseid' => $activity->course);
+				$params['itemnumber'] = ($activity->itemmodule == 'forum') ? 1 : 0;
 				
-				//set override
-				foreach($users AS $user){
-					$grade_item->update_final_grade($user->id, $finalgrade = 0, 'local_zerogrades');
-					mtrace("... set zero grade override for user $user->id");
+				if (!$grade_item = grade_item::fetch($params)) {
+					mtrace("... could not fetch grade item");
+				} else {
+					//set override
+					foreach($users AS $user){
+						$grade_item->update_final_grade($user->id, $finalgrade = 0, 'local_zerogrades');
+						mtrace("... set zero grade override for user $user->id");
+					}
 				}
 			}
 		}

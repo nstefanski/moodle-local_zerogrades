@@ -33,17 +33,18 @@ defined('MOODLE_INTERNAL') || die();
  * @param int $userid
  * @return bool
  */
-function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid) {
+function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid, $itemnumber = 0) {
 	global $CFG;
 	require_once $CFG->dirroot.'/grade/lib.php';
 	
 	try {
-	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>$itemmodule,'iteminstance'=>$iteminstance,'courseid'=>$courseid))) {
+	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>$itemmodule,'itemnumber'=>$itemnumber,
+																						'iteminstance'=>$iteminstance,'courseid'=>$courseid))) {
 		    print_error('cannotfindgradeitem');
 		}
 		$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
 		
-		if($grade_grade->finalgrade == 0 && $grade_grade->overridden > 0){
+		if($grade_grade->finalgrade == $grade_item->grademin && $grade_grade->overridden > 0){
 			$grade_grade->set_overridden(0);
 			$grade_item->force_regrading(); //need to regrade since we're unoverriding
 			return true;
@@ -66,15 +67,21 @@ function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid) {
 function zg_autograde_forum($forumid, $courseid, $userid){
 	global $CFG, $DB;
 	require_once $CFG->dirroot.'/grade/lib.php';
-	//$nick = $DB->get_record('user', array('id'=>'4'));//DEBUG
+	$nick = $DB->get_record('user', array('id'=>'4'));//DEBUG
 	
 	try {
-	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>'forum','iteminstance'=>$forumid,'courseid'=>$courseid))) {
-		    print_error('cannotfindgradeitem');
+		$wfg = 2;
+		while ($wfg > 0 && !$grade_item) {
+			$wfg--;
+			$grade_item = grade_item::fetch(array('itemmodule'=>'forum','itemnumber'=>$wfg,
+																						'iteminstance'=>$forumid,'courseid'=>$courseid));
+		}
+		if (!$grade_item) {
+			print_error('cannotfindgradeitem');
 		}
 		
 		//check scaleid == 19 ("Like [4]")
-		if(abs($grade_item->scaleid) == 19){
+		if (abs($grade_item->scaleid) == 19 || abs($grade_item->scaleid) == 46) {
 			//get all forum posts by user in forum
 			$sql = "SELECT p.* FROM mdl_forum_posts p JOIN mdl_forum_discussions d ON p.discussion = d.id
 					WHERE p.userid = ? and d.forum = ?";
@@ -84,7 +91,8 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 			
 			foreach($posts as $post){
 				//get word counts
-				if(count_words($post->message) >= $wordcount){
+				$post_wordcount = $post->wordcount ? $post->wordcount : count_words($post->message);
+				if($post_wordcount >= $wordcount){
 					$ct++;
 				}
 			}
@@ -102,7 +110,18 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 				$finalgrade = $grade_grade->finalgrade;
 			}
 			
-			return $grade_item->update_final_grade($userid, $finalgrade, 'local_zerogrades');
+			//TK if wfg...
+			if($wfg){
+			//  if ct > 0, call zg_remove_override
+				if($ct){
+					$override = zg_remove_override('forum', $forumid, $courseid, $userid, 1);
+				}
+			//  then, call $grade_item->update_raw_grade
+				return $grade_item->update_raw_grade($userid, $finalgrade, 'local_zerogrades');
+			//else...
+			} else {
+				return $grade_item->update_final_grade($userid, $finalgrade, 'local_zerogrades');
+			}
 		}
 	} catch (moodle_exception $e){
 		return false;
