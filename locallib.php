@@ -17,12 +17,21 @@
 /**
  * Library code for the zero grades local plugin.
  *
- * @package		local_zerogrades
+ * @package	local_zerogrades
  * @copyright	2019 Nick Stefanski <nmstefanski@gmail.com>
- * @license		http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @license	http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
+
+global $CFG;
+require_once $CFG->dirroot.'/grade/lib.php';
+require_once $CFG->libdir.'/accesslib.php';
+require_once $CFG->libdir.'/grade/grade_item.php';
+require_once $CFG->dirroot.'/mod/forum/classes/grades/forum_gradeitem.php';
+use context_module;
+use grade_item;
+use mod_forum\grades\forum_gradeitem;
 
 /**
  * Remove grade override for specific grade
@@ -34,8 +43,6 @@ defined('MOODLE_INTERNAL') || die();
  * @return bool
  */
 function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid, $itemnumber = 0) {
-	global $CFG;
-	require_once $CFG->dirroot.'/grade/lib.php';
 	
 	try {
 	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>$itemmodule,'itemnumber'=>$itemnumber,
@@ -65,8 +72,7 @@ function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid, $ite
  * @return bool
  */
 function zg_autograde_forum($forumid, $courseid, $userid){
-	global $CFG, $DB;
-	require_once $CFG->dirroot.'/grade/lib.php';
+	global $DB;
 	$nick = $DB->get_record('user', array('id'=>'4'));//DEBUG
 	
 	try {
@@ -92,7 +98,7 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 			foreach($posts as $post){
 				//get word counts
 				$post_wordcount = $post->wordcount ? $post->wordcount : count_words($post->message);
-				if($post_wordcount >= $wordcount){
+				if(count_words($post->message) >= $wordcount){
 					$ct++;
 				}
 			}
@@ -117,7 +123,14 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 					$override = zg_remove_override('forum', $forumid, $courseid, $userid, 1);
 				}
 			//  then, call $grade_item->update_raw_grade
-				return $grade_item->update_raw_grade($userid, $finalgrade, 'local_zerogrades');
+				$vaultfactory = mod_forum\local\container::get_vault_factory();
+				$forumvault = $vaultfactory->get_forum_vault();
+				$forum = $forumvault->get_from_id($forumid);
+				$forumgradeitem = forum_gradeitem::load_from_forum_entity($forum);
+				$gradeduser = \core_user::get_user($userid);
+				$gg = new stdClass;
+				$gg->grade = $finalgrade;
+				return $forumgradeitem->store_grade_from_formdata($gradeduser, $gradeduser, $gg);
 			//else...
 			} else {
 				return $grade_item->update_final_grade($userid, $finalgrade, 'local_zerogrades');
@@ -129,4 +142,119 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 	
 	return false;
 	
+}
+
+/**
+ * Create grade overrides for given date range
+ *
+ * @param int $timebegin unix timestamp
+ * @param int $timeend unix timestamp
+ */
+function zg_create_overrides_in_range($timebegin, $timeend) {
+	global $DB;
+	
+	$asql = "SELECT cm.id AS cmid, cm.course, gi.id AS itemid, gi.itemmodule, cm.instance
+				FROM {course_modules} cm
+				JOIN {modules} m ON cm.module = m.id
+				JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
+				LEFT JOIN {assign} a ON a.id = cm.instance AND cm.module = 1
+				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp') AND cm.visible = 1
+					AND (gi.itemnumber = 1 OR gi.itemmodule <> 'forum')
+					AND ( (cm.completionexpected >= $timebegin AND cm.completionexpected < $timeend)
+					OR (a.duedate >= $timebegin AND a.duedate < $timeend) )";
+	$activities = $DB->get_records_sql($asql);
+	mtrace("... found " . count($activities) . " activities between $timebegin and $timeend ");
+
+	//for each, get all users in that context who have not submitted
+	foreach($activities as $activity) {
+		mtrace("... working on $activity->itemmodule $activity->cmid");
+		$context = context_module::instance($activity->cmid);
+		list($esql, $params) = get_enrolled_sql($context, 'mod/assign:submit', $groupid = 0, $onlyactive = true);
+
+		//get correct table for user submissions / attempts / posts
+		switch ($activity->itemmodule){
+			case "assign":
+				$submitsql = "SELECT COUNT(*) FROM {assign_submission}
+					WHERE userid = u.id AND assignment = $activity->instance AND status = 'submitted'";
+				break;
+			case "quiz":
+				$submitsql = "SELECT COUNT(*) FROM {quiz_attempts}
+					WHERE userid = u.id AND quiz = $activity->instance AND state = 'finished'";
+				break;
+			case "forum":	//override null grades only -- students who have made enough posts should have a grade by now
+				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
+					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.finalgrade IS NOT NULL
+						AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
+				$submitsql .= ' AND itemnumber = 1'; // TK WFG
+			case "hvp":
+				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
+					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
+						AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
+				break;
+			default:
+				$submitsql = "1";	//no results
+		}
+
+		$usql = "SELECT DISTINCT u.id
+				FROM {user} u
+				JOIN ($esql) je ON je.id = u.id
+				WHERE ($submitsql) = 0";
+		//mtrace("... debug sql: $usql");
+
+		$users = $DB->get_records_sql($usql, $params);
+		mtrace("... found " . count($users) . " users for $activity->itemmodule $activity->cmid");
+
+		if ($users) {
+			//get the grade_item
+			$params = array('id' => $activity->itemid, 'courseid' => $activity->course);
+			$params['itemnumber'] = ($activity->itemmodule == 'forum') ? 1 : 0;
+
+			if (!$grade_item = grade_item::fetch($params)) {
+				mtrace("... could not fetch grade item");
+			} else {
+				//set override
+				foreach($users AS $user){
+					$grade_item->update_final_grade($user->id, $finalgrade = 0, 'local_zerogrades');
+					mtrace("... set zero grade override for user $user->id");
+				}
+			}
+		}
+	}
+}
+
+function zg_zoom_archive_forum($cmid, $userid) {
+	global $DB;
+	$scaleid = 84; // Set constant.
+	
+	// Get forum id / cm instance / grade item iteminstance  
+	//   from first forum activity in same section with given scaleid.
+	$sql = "select gi.id, gi.iteminstance, gi.grademax, gi.scaleid
+		from {course_modules} cm
+		join {course_sections} cs on cm.section = cs.id
+		join {course_modules} cm2 on cm2.section = cs.id
+		join {modules} m on cm2.module = m.id
+		join {grade_items} gi on gi.itemmodule = m.name 
+		  and gi.iteminstance = cm2.instance
+		where m.name = 'forum' and cm.id = ? and gi.scaleid = ?";
+	try {
+		$gi = $DB->get_record_sql($sql, [$cmid,$scaleid]);
+		
+		if ($gi && $gi->iteminstance && $gi->grademax) {
+			$forumid = $gi->iteminstance;
+			$finalgrade = $gi->grademax;
+			
+			$vaultfactory = mod_forum\local\container::get_vault_factory();
+			$forumvault = $vaultfactory->get_forum_vault();
+			$forum = $forumvault->get_from_id($forumid);
+			$forumgradeitem = forum_gradeitem::load_from_forum_entity($forum);
+			$gradeduser = \core_user::get_user($userid);
+			$gg = new stdClass;
+			$gg->grade = $finalgrade;
+			return $forumgradeitem->store_grade_from_formdata($gradeduser, $gradeduser, $gg);
+		} else {
+			return false;
+		}
+	} catch(moodle_exception $e) {
+		return false;
+	}
 }
