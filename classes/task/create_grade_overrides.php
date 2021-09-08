@@ -24,13 +24,8 @@
 
 namespace local_zerogrades\task;
 
-global $CFG, $DB;
-		
-require_once $CFG->dirroot.'/grade/lib.php';
-require_once $CFG->libdir.'/accesslib.php';
-require_once $CFG->libdir.'/grade/grade_item.php';
-use context_module;
-use grade_item;
+global $CFG;
+require_once $CFG->dirroot.'/local/zerogrades/locallib.php';
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -48,81 +43,13 @@ class create_grade_overrides extends \core\task\scheduled_task {
 	public function execute() {
 		mtrace("... creating zero grade overrides ...");
 		
-		global $CFG, $DB;
-		
 		//get all assigns/activities past due/expected
 		$y = strtotime("-1 days");
 		$timebegin = mktime(0, 0, 0, date("m",$y), date("d",$y), date("Y",$y));
 		$timeend = mktime(0,0,0);
 		//look for dates from yesterday 00:00:00 AM to yesterday 23:59:59 PM
 		
-		$asql = "SELECT cm.id AS cmid, cm.course, gi.id AS itemid, gi.itemmodule, cm.instance
-				FROM {course_modules} cm
-				JOIN {modules} m ON cm.module = m.id
-				JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
-				LEFT JOIN {assign} a ON a.id = cm.instance AND cm.module = 1
-				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp') AND cm.visible = 1
-					AND (gi.itemnumber = 1 OR gi.itemmodule <> 'forum')
-					AND ( (cm.completionexpected >= $timebegin AND cm.completionexpected < $timeend)
-					OR (a.duedate >= $timebegin AND a.duedate < $timeend) )";
-		$activities = $DB->get_records_sql($asql);
-		mtrace("... found " . count($activities) . " activities between $timebegin and $timeend ");
-		
-		//for each, get all users in that context who have not submitted
-		foreach($activities as $activity) {
-			mtrace("... working on $activity->itemmodule $activity->cmid");
-			$context = context_module::instance($activity->cmid);
-			list($esql, $params) = get_enrolled_sql($context, 'mod/assign:submit', $groupid = 0, $onlyactive = true);
-			
-			//get correct table for user submissions / attempts / posts
-			switch ($activity->itemmodule){
-				case "assign":
-					$submitsql = "SELECT COUNT(*) FROM {assign_submission}
-						WHERE userid = u.id AND assignment = $activity->instance AND status = 'submitted'";
-					break;
-				case "quiz":
-					$submitsql = "SELECT COUNT(*) FROM {quiz_attempts}
-						WHERE userid = u.id AND quiz = $activity->instance AND state = 'finished'";
-					break;
-				case "forum":	//override null grades only -- students who have made enough posts should have a grade by now
-					$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
-						WHERE gi.itemmodule = '$activity->itemmodule' AND gg.finalgrade IS NOT NULL
-							AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
-					$submitsql .= ' AND itemnumber = 1'; // TK WFG
-				case "hvp":
-					$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
-						WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
-							AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
-					break;
-				default:
-					$submitsql = "1";	//no results
-			}
-			
-			$usql = "SELECT DISTINCT u.id
-					FROM {user} u
-					JOIN ($esql) je ON je.id = u.id
-					WHERE ($submitsql) = 0";
-			//mtrace("... debug sql: $usql");
-			
-			$users = $DB->get_records_sql($usql, $params);
-			mtrace("... found " . count($users) . " users for $activity->itemmodule $activity->cmid");
-			
-			if ($users) {
-				//get the grade_item
-				$params = array('id' => $activity->itemid, 'courseid' => $activity->course);
-				$params['itemnumber'] = ($activity->itemmodule == 'forum') ? 1 : 0;
-				
-				if (!$grade_item = grade_item::fetch($params)) {
-					mtrace("... could not fetch grade item");
-				} else {
-					//set override
-					foreach($users AS $user){
-						$grade_item->update_final_grade($user->id, $finalgrade = 0, 'local_zerogrades');
-						mtrace("... set zero grade override for user $user->id");
-					}
-				}
-			}
-		}
+		zg_create_overrides_in_range($timebegin, $timeend);
 		
 		return true;
 	}
