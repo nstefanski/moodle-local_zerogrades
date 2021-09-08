@@ -28,6 +28,9 @@ defined('MOODLE_INTERNAL') || die();
  * Event observer for local_zerogrades.
  */
 class local_zerogrades_observer {
+
+    global $CFG;
+    require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
 	
     /**
      * Triggered via assessable_submitted event.
@@ -36,10 +39,9 @@ class local_zerogrades_observer {
      * @return void
      */
     public static function assessable_submitted(\mod_assign\event\assessable_submitted $event) {
-		global $CFG, $DB;
+        global $DB;
         $assign_submission = $DB->get_record('assign_submission', ['id' => $event->objectid ]);
-		require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
-		$result = zg_remove_override('assign', $assign_submission->assignment, $event->courseid, $event->userid);
+        $result = zg_remove_override('assign', $assign_submission->assignment, $event->courseid, $event->userid);
     }
 
     /**
@@ -49,11 +51,10 @@ class local_zerogrades_observer {
 	 * @return void
      */
     public static function attempt_submitted(\mod_quiz\event\attempt_submitted $event) {
-		global $CFG, $DB;
-		//$other = (object) @unserialize($event->other); //not sure why this is failing... replace with DB call
+        global $DB;
+        //$other = (object) @unserialize($event->other); //not sure why this is failing... replace with DB call
         $quiz_attempt = $DB->get_record('quiz_attempts', ['id' => $event->objectid ]);
-        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
-		$result = zg_remove_override('quiz', $quiz_attempt->quiz, $event->courseid, $event->userid);
+        $result = zg_remove_override('quiz', $quiz_attempt->quiz, $event->courseid, $event->userid);
     }
     
     /**
@@ -67,23 +68,25 @@ class local_zerogrades_observer {
 	 * @return void
      */
     public static function post_created(\mod_forum\event\post_created $event) {
-		global $CFG;
-        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
-		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+        $result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
     }
     public static function post_updated(\mod_forum\event\post_updated $event) {
-		global $CFG;
-        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
-		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+        $result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
     }
     public static function discussion_created(\mod_forum\event\discussion_created $event) {
-		global $CFG;
-        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
-		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+        $result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
     }
     public static function discussion_updated(\mod_forum\event\discussion_updated $event) {
-		global $CFG;
-        require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
-		$result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+        $result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
+    }
+
+    /**
+     * Triggered via join_meeting_button_clicked event.
+     *
+     * @param \mod_zoom\event\join_meeting_button_clicked $event
+     * @return void
+     */
+    public static function join_meeting_button_clicked(\mod_zoom\event\join_meeting_button_clicked $event) {
+        $result = zg_zoom_archive_forum($event->contextinstanceid, $event->userid);
     }
 }
