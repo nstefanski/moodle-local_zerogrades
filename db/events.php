@@ -50,4 +50,8 @@ $observers = array(
         'eventname'   => '\mod_forum\event\discussion_updated',
         'callback'    => 'local_zerogrades_observer::discussion_updated',
     ),
+    array(
+        'eventname'   => '\mod_zoom\event\join_meeting_button_clicked',
+        'callback'    => 'local_zerogrades_observer::join_meeting_button_clicked',
+    ),
 );
