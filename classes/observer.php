@@ -24,13 +24,13 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
+
 /**
  * Event observer for local_zerogrades.
  */
 class local_zerogrades_observer {
-
-    global $CFG;
-    require_once($CFG->dirroot.'/local/zerogrades/locallib.php');
 	
     /**
      * Triggered via assessable_submitted event.
