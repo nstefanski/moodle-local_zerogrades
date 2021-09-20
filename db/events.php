@@ -43,6 +43,10 @@ $observers = array(
         'callback'    => 'local_zerogrades_observer::post_updated',
     ),
     array(
+        'eventname'   => '\mod_forum\event\post_deleted',
+        'callback'    => 'local_zerogrades_observer::post_deleted',
+    ),
+    array(
         'eventname'   => '\mod_forum\event\discussion_created',
         'callback'    => 'local_zerogrades_observer::discussion_created',
     ),
