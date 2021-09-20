@@ -73,6 +73,10 @@ class local_zerogrades_observer {
     public static function post_updated(\mod_forum\event\post_updated $event) {
         $result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
     }
+    public static function post_deleted(\mod_forum\event\post_deleted $event) {
+        $userid = $event->relateduserid ? $event->relateduserid : $event->userid;
+        $result = zg_autograde_forum($event->other['forumid'], $event->courseid, $userid);
+    }
     public static function discussion_created(\mod_forum\event\discussion_created $event) {
         $result = zg_autograde_forum($event->other['forumid'], $event->courseid, $event->userid);
     }
