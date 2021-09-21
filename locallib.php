@@ -98,7 +98,7 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 			foreach($posts as $post){
 				//get word counts
 				$post_wordcount = $post->wordcount ? $post->wordcount : count_words($post->message);
-				if(count_words($post->message) >= $wordcount){
+				if($post_wordcount >= $wordcount){
 					$ct++;
 				}
 			}
