@@ -181,11 +181,12 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 				$submitsql = "SELECT COUNT(*) FROM {quiz_attempts}
 					WHERE userid = u.id AND quiz = $activity->instance AND state = 'finished'";
 				break;
-			case "forum":	//override null grades only -- students who have made enough posts should have a grade by now
-				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
-					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.finalgrade IS NOT NULL
-						AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
-				$submitsql .= ' AND itemnumber = 1'; // TK WFG
+			case "forum":	// Detect students with posts OR grades.
+				$submitsql = "SELECT COUNT(p.id) + COUNT(gg.id) FROM {forum_discussions} d 
+					LEFT JOIN mdl_forum_posts p ON p.discussion = d.id AND p.userid = u.id
+					JOIN {grade_items} gi ON gi.itemmodule = '$activity->itemmodule' AND gi.iteminstance = d.forum
+					LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
+					WHERE d.forum = $activity->instance";
 			case "hvp":
 				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
 					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
