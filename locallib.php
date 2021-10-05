@@ -186,7 +186,7 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 					LEFT JOIN mdl_forum_posts p ON p.discussion = d.id AND p.userid = u.id
 					JOIN {grade_items} gi ON gi.itemmodule = '$activity->itemmodule' AND gi.iteminstance = d.forum
 					LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
-					WHERE d.forum = $activity->instance";
+					WHERE d.forum = $activity->instance AND gi.itemnumber = 1";
 			case "hvp":
 				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
 					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
