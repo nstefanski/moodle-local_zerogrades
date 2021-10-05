@@ -135,6 +135,15 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 			} else {
 				return $grade_item->update_final_grade($userid, $finalgrade, 'local_zerogrades');
 			}
+		} else if (abs($grade_item->scaleid) == 84) {
+			// Remove any overrides.
+			$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
+			
+			if($grade_grade->finalgrade == $grade_item->grademin && $grade_grade->overridden > 0){
+				$grade_grade->set_overridden(0);
+				$grade_item->force_regrading(); //need to regrade since we're unoverriding
+				return true;
+			}
 		}
 	} catch (moodle_exception $e){
 		return false;
