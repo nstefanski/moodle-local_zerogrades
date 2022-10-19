@@ -167,7 +167,7 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 				JOIN {modules} m ON cm.module = m.id
 				JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
 				LEFT JOIN {assign} a ON a.id = cm.instance AND cm.module = 1
-				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp') AND cm.visible = 1
+				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp','lti') AND cm.visible = 1
 					AND (gi.itemnumber = 1 OR gi.itemmodule <> 'forum')
 					AND ( (cm.completionexpected >= $timebegin AND cm.completionexpected < $timeend)
 					OR (a.duedate >= $timebegin AND a.duedate < $timeend) )";
@@ -198,6 +198,7 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 					WHERE d.forum = $activity->instance AND gi.itemnumber = 1";
 				break;
 			case "hvp":
+			case "lti":
 				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
 					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
 						AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
