@@ -54,7 +54,8 @@ class remove_grade_overrides extends \core\task\scheduled_task {
 				JOIN {grade_items} gi ON gg.itemid = gi.id
 				WHERE gg.rawgrade IS NOT NULL
 					AND gg.finalgrade = gi.grademin
-					AND gg.overridden > 0";
+					AND gg.overridden > 0
+					AND gi.itemmodule IN('assign','forum','hsuforum','quiz','hvp','lti')";
 		$activities = $DB->get_records_sql($sql);
 		
 		mtrace("... found " . count($activities) . " with overridden grades");
