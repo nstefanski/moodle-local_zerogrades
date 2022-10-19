@@ -53,8 +53,7 @@ class remove_grade_overrides extends \core\task\scheduled_task {
 				FROM {grade_grades} gg
 				JOIN {grade_items} gi ON gg.itemid = gi.id
 				WHERE gg.rawgrade IS NOT NULL
-					AND gg.finalgrade = 0
-					AND (gi.scaleid <> 18 OR gi.scaleid IS NULL)	/* items with this scale handled separately in locallib */
+					AND gg.finalgrade = gi.grademin
 					AND gg.overridden > 0";
 		$activities = $DB->get_records_sql($sql);
 		
