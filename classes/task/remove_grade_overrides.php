@@ -49,7 +49,7 @@ class remove_grade_overrides extends \core\task\scheduled_task {
 		global $CFG, $DB;
 		
 		//get overridden activities
-		$sql = "SELECT gi.id AS itemid, gi.courseid, gg.userid
+		$sql = "SELECT gg.id, gi.id AS itemid, gi.courseid, gg.userid
 				FROM {grade_grades} gg
 				JOIN {grade_items} gi ON gg.itemid = gi.id
 				WHERE gg.rawgrade IS NOT NULL
