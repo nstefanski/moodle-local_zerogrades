@@ -191,11 +191,11 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 					WHERE userid = u.id AND quiz = $activity->instance AND state = 'finished'";
 				break;
 			case "forum":	// Detect students with posts OR grades.
-				$submitsql = "SELECT COUNT(p.id) + COUNT(gg.id) FROM {forum_discussions} d 
-					LEFT JOIN mdl_forum_posts p ON p.discussion = d.id AND p.userid = u.id
-					JOIN {grade_items} gi ON gi.itemmodule = '$activity->itemmodule' AND gi.iteminstance = d.forum
-					LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id
-					WHERE d.forum = $activity->instance AND gi.itemnumber = 1";
+				$submitsql = "SELECT COUNT(p.id) + COUNT(gg.id) FROM {grade_items} gi
+					LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id AND gg.finalgrade is not null
+					LEFT JOIN {forum_discussions} d ON gi.iteminstance = d.forum
+					LEFT JOIN {forum_posts} p ON p.discussion = d.id AND p.userid = u.id 
+					WHERE gi.iteminstance = $activity->instance AND gi.itemmodule = '$activity->itemmodule' AND gi.itemnumber = 1";
 				break;
 			case "hvp":
 			case "lti":
