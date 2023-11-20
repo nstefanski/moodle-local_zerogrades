@@ -29,8 +29,8 @@ require_once $CFG->dirroot.'/grade/lib.php';
 require_once $CFG->libdir.'/accesslib.php';
 require_once $CFG->libdir.'/grade/grade_item.php';
 require_once $CFG->dirroot.'/mod/forum/classes/grades/forum_gradeitem.php';
-use context_module;
-use grade_item;
+//use context_module;
+//use grade_item;
 use mod_forum\grades\forum_gradeitem;
 
 /**
@@ -162,11 +162,12 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 function zg_create_overrides_in_range($timebegin, $timeend) {
 	global $DB;
 	
-	$asql = "SELECT cm.id AS cmid, cm.course, gi.id AS itemid, gi.itemmodule, cm.instance
+	$asql = "SELECT concat(cm.id,'-',gg.groupid) as uuid, cm.id AS cmid, cm.course, gi.id AS itemid, gi.itemmodule, cm.instance, gg.groupid
 				FROM {course_modules} cm
 				JOIN {modules} m ON cm.module = m.id
 				JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
 				LEFT JOIN {assign} a ON a.id = cm.instance AND cm.module = 1
+				LEFT JOIN {groupings_groups} gg on cm.groupingid = gg.groupingid
 				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp','lti') AND cm.visible = 1
 					AND (gi.itemnumber = 1 OR gi.itemmodule <> 'forum')
 					AND ( (cm.completionexpected >= $timebegin AND cm.completionexpected < $timeend)
@@ -178,7 +179,7 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 	foreach($activities as $activity) {
 		mtrace("... working on $activity->itemmodule $activity->cmid");
 		$context = context_module::instance($activity->cmid);
-		list($esql, $params) = get_enrolled_sql($context, 'mod/assign:submit', $groupid = 0, $onlyactive = true);
+		list($esql, $params) = get_enrolled_sql($context, 'mod/assign:submit', $activity->groupid, $onlyactive = true);
 
 		//get correct table for user submissions / attempts / posts
 		switch ($activity->itemmodule){
