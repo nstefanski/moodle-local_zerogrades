@@ -29,6 +29,7 @@ require_once $CFG->dirroot.'/grade/lib.php';
 require_once $CFG->libdir.'/accesslib.php';
 require_once $CFG->libdir.'/grade/grade_item.php';
 require_once $CFG->dirroot.'/mod/forum/classes/grades/forum_gradeitem.php';
+require_once $CFG->dirroot.'/lib/gradelib.php';
 //use context_module;
 //use grade_item;
 use mod_forum\grades\forum_gradeitem;
@@ -175,6 +176,8 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 	$activities = $DB->get_records_sql($asql);
 	mtrace("... found " . count($activities) . " activities between $timebegin and $timeend ");
 
+	$courses = array();
+
 	//for each, get all users in that context who have not submitted
 	foreach($activities as $activity) {
 		mtrace("... working on $activity->itemmodule $activity->cmid");
@@ -230,8 +233,17 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 					$grade_item->update_final_grade($user->id, $finalgrade = 0, 'local_zerogrades');
 					mtrace("... set zero grade override for user $user->id");
 				}
+				//add course to list for grade recalc
+				$courses[$activity->course] = $activity->course;
 			}
 		}
+	}
+
+	mtrace("... recalculating gradebooks as needed");
+	foreach($courses as $courseid => $course) {
+		$course = $DB->get_record('course', array('id' => $courseid));
+		grade_regrade_final_grades_if_required($course);
+		mtrace("... regrade for course $courseid");
 	}
 }
 
