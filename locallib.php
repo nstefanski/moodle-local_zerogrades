@@ -241,9 +241,14 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 
 	mtrace("... recalculating gradebooks as needed");
 	foreach($courses as $courseid => $course) {
-		$course = $DB->get_record('course', array('id' => $courseid));
-		grade_regrade_final_grades_if_required($course);
-		mtrace("... regrade for course $courseid");
+		mtrace("... checking for course $courseid");
+		try {
+			$course = $DB->get_record('course', array('id' => $courseid));
+			grade_regrade_final_grades_if_required($course);
+			mtrace("... check complete for course $courseid");
+		} catch (moodle_exception $exception) {
+			mtrace("error: " . $exception->getMessage() );
+		}
 	}
 }
 
