@@ -49,13 +49,13 @@ class remove_grade_overrides extends \core\task\scheduled_task {
 		global $CFG, $DB;
 		
 		//get overridden activities
-		$sql = "SELECT gi.id AS itemid, gi.courseid, gg.userid
+		$sql = "SELECT gg.id, gi.id AS itemid, gi.courseid, gg.userid
 				FROM {grade_grades} gg
 				JOIN {grade_items} gi ON gg.itemid = gi.id
 				WHERE gg.rawgrade IS NOT NULL
-					AND gg.finalgrade = 0
-					AND (gi.scaleid <> 18 OR gi.scaleid IS NULL)	/* items with this scale handled separately in locallib */
-					AND gg.overridden > 0";
+					AND gg.finalgrade = gi.grademin
+					AND gg.overridden > 0
+					AND gi.itemmodule IN('assign','forum','hsuforum','quiz','hvp','lti')";
 		$activities = $DB->get_records_sql($sql);
 		
 		mtrace("... found " . count($activities) . " with overridden grades");

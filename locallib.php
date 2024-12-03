@@ -29,8 +29,9 @@ require_once $CFG->dirroot.'/grade/lib.php';
 require_once $CFG->libdir.'/accesslib.php';
 require_once $CFG->libdir.'/grade/grade_item.php';
 require_once $CFG->dirroot.'/mod/forum/classes/grades/forum_gradeitem.php';
-use context_module;
-use grade_item;
+require_once $CFG->dirroot.'/lib/gradelib.php';
+//use context_module;
+//use grade_item;
 use mod_forum\grades\forum_gradeitem;
 
 /**
@@ -135,6 +136,15 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 			} else {
 				return $grade_item->update_final_grade($userid, $finalgrade, 'local_zerogrades');
 			}
+		} else if (abs($grade_item->scaleid) == 84) {
+			// Remove any overrides.
+			$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
+			
+			if($grade_grade->finalgrade == $grade_item->grademin && $grade_grade->overridden > 0){
+				$grade_grade->set_overridden(0);
+				$grade_item->force_regrading(); //need to regrade since we're unoverriding
+				return true;
+			}
 		}
 	} catch (moodle_exception $e){
 		return false;
@@ -153,23 +163,26 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 function zg_create_overrides_in_range($timebegin, $timeend) {
 	global $DB;
 	
-	$asql = "SELECT cm.id AS cmid, cm.course, gi.id AS itemid, gi.itemmodule, cm.instance
+	$asql = "SELECT concat(cm.id,'-',gg.groupid) as uuid, cm.id AS cmid, cm.course, gi.id AS itemid, gi.itemmodule, cm.instance, gg.groupid
 				FROM {course_modules} cm
 				JOIN {modules} m ON cm.module = m.id
 				JOIN {grade_items} gi ON gi.iteminstance = cm.instance AND gi.itemmodule = m.name
 				LEFT JOIN {assign} a ON a.id = cm.instance AND cm.module = 1
-				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp') AND cm.visible = 1
+				LEFT JOIN {groupings_groups} gg on cm.groupingid = gg.groupingid
+				WHERE gi.itemmodule IN ('assign','forum','hsuforum','quiz','hvp','lti') AND cm.visible = 1
 					AND (gi.itemnumber = 1 OR gi.itemmodule <> 'forum')
 					AND ( (cm.completionexpected >= $timebegin AND cm.completionexpected < $timeend)
 					OR (a.duedate >= $timebegin AND a.duedate < $timeend) )";
 	$activities = $DB->get_records_sql($asql);
 	mtrace("... found " . count($activities) . " activities between $timebegin and $timeend ");
 
+	$courses = array();
+
 	//for each, get all users in that context who have not submitted
 	foreach($activities as $activity) {
 		mtrace("... working on $activity->itemmodule $activity->cmid");
 		$context = context_module::instance($activity->cmid);
-		list($esql, $params) = get_enrolled_sql($context, 'mod/assign:submit', $groupid = 0, $onlyactive = true);
+		list($esql, $params) = get_enrolled_sql($context, 'mod/assign:submit', $activity->groupid, $onlyactive = true);
 
 		//get correct table for user submissions / attempts / posts
 		switch ($activity->itemmodule){
@@ -181,12 +194,15 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 				$submitsql = "SELECT COUNT(*) FROM {quiz_attempts}
 					WHERE userid = u.id AND quiz = $activity->instance AND state = 'finished'";
 				break;
-			case "forum":	//override null grades only -- students who have made enough posts should have a grade by now
-				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
-					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.finalgrade IS NOT NULL
-						AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
-				$submitsql .= ' AND itemnumber = 1'; // TK WFG
+			case "forum":	// Detect students with posts OR grades.
+				$submitsql = "SELECT COUNT(p.id) + COUNT(gg.id) FROM {grade_items} gi
+					LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = u.id AND gg.finalgrade is not null
+					LEFT JOIN {forum_discussions} d ON gi.iteminstance = d.forum
+					LEFT JOIN {forum_posts} p ON p.discussion = d.id AND p.userid = u.id 
+					WHERE gi.iteminstance = $activity->instance AND gi.itemmodule = '$activity->itemmodule' AND gi.itemnumber = 1";
+				break;
 			case "hvp":
+			case "lti":
 				$submitsql = "SELECT COUNT(*) FROM {grade_grades} gg JOIN {grade_items} gi ON gg.itemid = gi.id
 					WHERE gi.itemmodule = '$activity->itemmodule' AND gg.rawgrade IS NOT NULL
 						AND gg.userid = u.id AND gi.iteminstance = $activity->instance";
@@ -217,7 +233,21 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 					$grade_item->update_final_grade($user->id, $finalgrade = 0, 'local_zerogrades');
 					mtrace("... set zero grade override for user $user->id");
 				}
+				//add course to list for grade recalc
+				$courses[$activity->course] = $activity->course;
 			}
+		}
+	}
+
+	mtrace("... recalculating gradebooks as needed");
+	foreach($courses as $courseid => $course) {
+		mtrace("... checking for course $courseid");
+		try {
+			$course = $DB->get_record('course', array('id' => $courseid));
+			grade_regrade_final_grades_if_required($course);
+			mtrace("... check complete for course $courseid");
+		} catch (moodle_exception $exception) {
+			mtrace("error: " . $exception->getMessage() );
 		}
 	}
 }
