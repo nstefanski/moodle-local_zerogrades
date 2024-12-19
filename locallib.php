@@ -47,7 +47,7 @@ function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid, $ite
 	
 	try {
 	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>$itemmodule,'itemnumber'=>$itemnumber,
-																						'iteminstance'=>$iteminstance,'courseid'=>$courseid))) {
+			'iteminstance'=>$iteminstance,'courseid'=>$courseid))) {
 		    print_error('cannotfindgradeitem');
 		}
 		$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
@@ -81,7 +81,7 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 		while ($wfg > 0 && !$grade_item) {
 			$wfg--;
 			$grade_item = grade_item::fetch(array('itemmodule'=>'forum','itemnumber'=>$wfg,
-																						'iteminstance'=>$forumid,'courseid'=>$courseid));
+				'iteminstance'=>$forumid,'courseid'=>$courseid));
 		}
 		if (!$grade_item) {
 			print_error('cannotfindgradeitem');
@@ -232,6 +232,7 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 				foreach($users AS $user){
 					$grade_item->update_final_grade($user->id, $finalgrade = 0, 'local_zerogrades');
 					mtrace("... set zero grade override for user $user->id");
+					$grade_item->force_regrading(); // TK force regrade just in case
 				}
 				//add course to list for grade recalc
 				$courses[$activity->course] = $activity->course;
@@ -280,7 +281,10 @@ function zg_zoom_archive_forum($cmid, $userid) {
 			$gradeduser = \core_user::get_user($userid);
 			$gg = new stdClass;
 			$gg->grade = $finalgrade;
-			return $forumgradeitem->store_grade_from_formdata($gradeduser, $gradeduser, $gg);
+			$result = $forumgradeitem->store_grade_from_formdata($gradeduser, $gradeduser, $gg);
+			$grade_item = grade_item::fetch(array('id'=>$gi->id));
+			$grade_item->force_regrading(); // TK force regrade just in case
+			return $result;
 		} else {
 			return false;
 		}
