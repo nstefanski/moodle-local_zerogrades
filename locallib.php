@@ -48,7 +48,8 @@ function zg_remove_override($itemmodule, $iteminstance, $courseid, $userid, $ite
 	try {
 	    if (!$grade_item = grade_item::fetch(array('itemmodule'=>$itemmodule,'itemnumber'=>$itemnumber,
 			'iteminstance'=>$iteminstance,'courseid'=>$courseid))) {
-		    print_error('cannotfindgradeitem');
+		    //print_error('cannotfindgradeitem'); // Function deprecated.
+		    throw new moodle_exception('cannotfindgradeitem');
 		}
 		$grade_grade = grade_grade::fetch(array('userid' => $userid, 'itemid' => $grade_item->id));
 		
@@ -84,7 +85,8 @@ function zg_autograde_forum($forumid, $courseid, $userid){
 				'iteminstance'=>$forumid,'courseid'=>$courseid));
 		}
 		if (!$grade_item) {
-			print_error('cannotfindgradeitem');
+			//print_error('cannotfindgradeitem'); // Function deprecated.
+			throw new moodle_exception('cannotfindgradeitem');
 		}
 		
 		//check scaleid == 19 ("Like [4]")
