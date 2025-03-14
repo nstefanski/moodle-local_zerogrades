@@ -261,16 +261,19 @@ function zg_zoom_archive_forum($cmid, $userid) {
 	
 	// Get forum id / cm instance / grade item iteminstance  
 	//   from first forum activity in same section with given scaleid.
-	$sql = "select gi.id, gi.iteminstance, gi.grademax, gi.scaleid
+	$sql = "select gi.id, gi.iteminstance, gi.grademax, gi.scaleid,
+		  cm2.id as cmid, cm2.completion, cm2.completionpassgrade, cmc.id as cmc
 		from {course_modules} cm
 		join {course_sections} cs on cm.section = cs.id
 		join {course_modules} cm2 on cm2.section = cs.id
 		join {modules} m on cm2.module = m.id
 		join {grade_items} gi on gi.itemmodule = m.name 
 		  and gi.iteminstance = cm2.instance
+		left join {course_modules_completion} cmc 
+		  on cm2.id = cmc.coursemoduleid and cmc.userid = ?
 		where m.name = 'forum' and cm.id = ? and gi.scaleid = ?";
 	try {
-		$gi = $DB->get_record_sql($sql, [$cmid,$scaleid]);
+		$gi = $DB->get_record_sql($sql, [$userid,$cmid,$scaleid]);
 		
 		if ($gi && $gi->iteminstance && $gi->grademax) {
 			$forumid = $gi->iteminstance;
@@ -286,6 +289,23 @@ function zg_zoom_archive_forum($cmid, $userid) {
 			$result = $forumgradeitem->store_grade_from_formdata($gradeduser, $gradeduser, $gg);
 			$grade_item = grade_item::fetch(array('id'=>$gi->id));
 			$grade_item->force_regrading(); // TK force regrade just in case
+
+			// update completion if applicable
+			if ($gi->completion == 2) {
+				$cmc = (object) array('coursemoduleid' => $gi->cmid, 
+						      'userid' => $userid,
+						      'completionstate' => $gi->completionpassgrade + 1,
+						      'overrideby' => 1,
+						      'timemodified' => time() );
+				if ($gi->cmc > 0) {
+					// update cmc
+					$cmc->id = $gi->cmc;
+					$DB->update_record('course_modules_completion', $cmc);
+				} else {
+					// insert new cmc
+					$DB->insert_record('course_modules_completion', $cmc);
+				}
+			}
 			return $result;
 		} else {
 			return false;
