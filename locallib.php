@@ -245,12 +245,22 @@ function zg_create_overrides_in_range($timebegin, $timeend) {
 	mtrace("... recalculating gradebooks as needed");
 	foreach($courses as $courseid => $course) {
 		mtrace("... checking for course $courseid");
-		try {
-			$course = $DB->get_record('course', array('id' => $courseid));
-			grade_regrade_final_grades_if_required($course);
-			mtrace("... check complete for course $courseid");
-		} catch (moodle_exception $exception) {
-			mtrace("error: " . $exception->getMessage() );
+		if (!grade_needs_regrade_final_grades($courseid)) {
+	        mtrace("... no regrade required");
+	    } else {
+			try {
+				//$course = $DB->get_record('course', array('id' => $courseid));
+				//grade_regrade_final_grades_if_required($course);
+				$result = grade_regrade_final_grades($courseid);
+				if ($result !== true) {
+					//error array
+					mtrace("... error for course $courseid: " . serialize($result) );
+				} else {
+					mtrace("... check complete for course $courseid");
+				}
+			} catch (moodle_exception $exception) {
+				mtrace("error: " . $exception->getMessage() );
+			}
 		}
 	}
 }
